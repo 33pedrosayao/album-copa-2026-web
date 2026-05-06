@@ -12,6 +12,7 @@ const state = {
   trocas: null,
   stats: null,
   pessoa: localStorage.getItem('pessoa') || null, // contexto de trocas/stats
+  searchQuery: '',    // busca ativa nas abas de figurinhas
 };
 
 // mapa codigo → objeto figurinha do album ativo (referência direta)
@@ -173,6 +174,8 @@ function switchTab(tab) {
     btn.classList.toggle('active', btn.dataset.tab === tab)
   );
 
+  state.searchQuery = ''; // limpa busca ao trocar de aba
+
   if (tab === 'pedro') {
     state.pessoa = 'pedro';
     localStorage.setItem('pessoa', 'pedro');
@@ -222,13 +225,51 @@ function updateProgressBar() {
 }
 
 // ─────────────────────────────────────────────
+// BUSCA
+// ─────────────────────────────────────────────
+function searchHtml() {
+  const q = state.searchQuery;
+  return `
+    <div class="search-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/>
+      </svg>
+      <input class="search-input" type="search"
+             placeholder="Buscar sigla ou país (BRA, ARG…)"
+             autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"
+             value="${esc(q)}" />
+      <button class="search-clear" data-action="clearSearch"
+              style="${q ? '' : 'display:none'}">×</button>
+    </div>`;
+}
+
+function filterSections(query) {
+  state.searchQuery = query;
+  const q = query.toLowerCase().trim();
+  const sections = document.querySelectorAll('.section');
+  let visibleCount = 0;
+  let lastVisible  = null;
+
+  sections.forEach(sec => {
+    const sigla = (sec.dataset.sigla || '').toLowerCase();
+    const nome  = (sec.dataset.nome  || '').toLowerCase();
+    const match = !q || sigla.startsWith(q) || sigla.includes(q) || nome.includes(q);
+    sec.style.display = match ? '' : 'none';
+    if (match) { visibleCount++; lastVisible = sec; }
+  });
+
+  // auto-expande quando só uma seção bate
+  if (visibleCount === 1 && lastVisible) lastVisible.classList.add('expanded');
+}
+
+// ─────────────────────────────────────────────
 // RENDER — ABA ÁLBUM (global, toggle colada, sem repetidas)
 // ─────────────────────────────────────────────
 function renderAlbumContent() {
   const album = activeAlbum();
   if (!album) return;
 
-  const html = album.secoes.map(sec => {
+  const sections = album.secoes.map(sec => {
     const total   = sec.figurinhas.length;
     const coladas = sec.figurinhas.filter(f => f.colada).length;
     const cards   = sec.figurinhas.map(fig => `
@@ -239,7 +280,8 @@ function renderAlbumContent() {
     return sectionHtml(sec, coladas, total, `album-grid`, cards);
   }).join('');
 
-  setContent(html);
+  setContent(searchHtml() + sections);
+  if (state.searchQuery) filterSections(state.searchQuery);
 }
 
 // ─────────────────────────────────────────────
@@ -249,7 +291,7 @@ function renderPessoaContent() {
   const album = activeAlbum();
   if (!album) return;
 
-  const html = album.secoes.map(sec => {
+  const sections = album.secoes.map(sec => {
     const total   = sec.figurinhas.length;
     const coladas = sec.figurinhas.filter(f => f.colada).length;
     const cards   = sec.figurinhas.map(fig => {
@@ -268,13 +310,14 @@ function renderPessoaContent() {
     return sectionHtml(sec, coladas, total, ``, cards);
   }).join('');
 
-  setContent(html);
+  setContent(searchHtml() + sections);
+  if (state.searchQuery) filterSections(state.searchQuery);
 }
 
 // helper: markup de uma seção em acordeão
 function sectionHtml(sec, coladas, total, gridClass, cardsHtml) {
   return `
-    <div class="section" data-sigla="${esc(sec.sigla)}">
+    <div class="section" data-sigla="${esc(sec.sigla)}" data-nome="${esc(sec.nome)}">
       <div class="section-header" data-action="toggleSection">
         <span class="section-sigla">${esc(sec.sigla)}</span>
         <span class="section-name">${esc(sec.nome)}</span>
@@ -505,6 +548,14 @@ function updateSectionProgress(fig) {
 // DELEGAÇÃO GLOBAL DE EVENTOS
 // ─────────────────────────────────────────────
 function setupDelegation() {
+  document.addEventListener('input', e => {
+    if (!e.target.matches('.search-input')) return;
+    const q = e.target.value;
+    filterSections(q);
+    const clearBtn = e.target.nextElementSibling;
+    if (clearBtn) clearBtn.style.display = q ? '' : 'none';
+  });
+
   document.addEventListener('click', e => {
     // rep-btn antes de sticker-card (está dentro dele)
     const repBtn = e.target.closest('[data-action="updateRepetida"]');
@@ -531,6 +582,13 @@ function setupDelegation() {
       }
       case 'copiarRepetidas': copiarRepetidas(); break;
       case 'copiarFaltam':    copiarFaltam();    break;
+      case 'clearSearch': {
+        const input = document.querySelector('.search-input');
+        if (input) { input.value = ''; input.focus(); }
+        filterSections('');
+        target.style.display = 'none';
+        break;
+      }
     }
   });
 }
