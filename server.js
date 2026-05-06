@@ -152,5 +152,56 @@ app.get('/api/trocas', (req, res) => {
   res.json({ minhasRepetidas, precisoColar });
 });
 
+// GET /api/export — baixa JSON com todos os dados de uso
+app.get('/api/export', (req, res) => {
+  const coladas = db.prepare(
+    'SELECT codigo FROM figurinhas WHERE colada = 1 ORDER BY ordem_secao, numero'
+  ).all().map(r => r.codigo);
+
+  const repetidasRows = db.prepare(
+    'SELECT pessoa, codigo, quantidade FROM repetidas WHERE quantidade > 0 ORDER BY pessoa, codigo'
+  ).all();
+
+  const repetidas = {};
+  for (const row of repetidasRows) {
+    if (!repetidas[row.pessoa]) repetidas[row.pessoa] = [];
+    repetidas[row.pessoa].push({ codigo: row.codigo, quantidade: row.quantidade });
+  }
+
+  res.setHeader('Content-Disposition', `attachment; filename="album-copa-backup-${new Date().toISOString().slice(0,10)}.json"`);
+  res.json({ exportedAt: new Date().toISOString(), coladas, repetidas });
+});
+
+// POST /api/import — restaura dados a partir de um JSON exportado
+app.post('/api/import', (req, res) => {
+  const { coladas, repetidas } = req.body;
+  if (!Array.isArray(coladas) || typeof repetidas !== 'object') {
+    return res.status(400).json({ error: 'JSON inválido. Esperado { coladas: [...], repetidas: {...} }' });
+  }
+
+  const resetColadas   = db.prepare('UPDATE figurinhas SET colada = 0');
+  const setColada      = db.prepare('UPDATE figurinhas SET colada = 1 WHERE codigo = ?');
+  const resetRepetidas = db.prepare('DELETE FROM repetidas');
+  const insRepetida    = db.prepare(
+    'INSERT OR REPLACE INTO repetidas (pessoa, codigo, quantidade) VALUES (?, ?, ?)'
+  );
+
+  db.transaction(() => {
+    resetColadas.run();
+    for (const codigo of coladas) setColada.run(codigo);
+
+    resetRepetidas.run();
+    for (const [pessoa, lista] of Object.entries(repetidas)) {
+      for (const { codigo, quantidade } of lista) {
+        if (quantidade > 0) insRepetida.run(pessoa, codigo, quantidade);
+      }
+    }
+  })();
+
+  const totalColadas = db.prepare('SELECT COUNT(*) AS n FROM figurinhas WHERE colada = 1').get().n;
+  const totalReps    = db.prepare('SELECT COUNT(*) AS n FROM repetidas').get().n;
+  res.json({ ok: true, coladas: totalColadas, repetidas: totalReps });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Álbum Copa 2026 rodando em http://localhost:${PORT}`));

@@ -35,13 +35,27 @@ body {
 }
 
 /* ═══════════════════════════════
-   HEADER — TÍTULO
+   HEADER — TÍTULO + BACKUP
 ═══════════════════════════════ */
 .header-title {
   font-weight: 800;
   font-size: 1.05rem;
   letter-spacing: -0.3px;
 }
+
+.btn-export {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.28);
+  border-radius: 16px;
+  color: rgba(255,255,255,0.85);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  text-decoration: none;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.btn-export:active { background: rgba(255,255,255,0.28); }
 
 /* ═══════════════════════════════
    HEADER

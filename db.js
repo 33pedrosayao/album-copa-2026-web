@@ -1,9 +1,25 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs   = require('fs');
 const { parseCsv } = require('./csv-parser');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'album.db');
+const DB_PATH  = process.env.DB_PATH || path.join(__dirname, 'album.db');
+const BAK_PATH = DB_PATH.replace(/\.db$/, '') + '.bak.db';
 const CSV_PATH = path.join(__dirname, 'figurinhas_album_2026.csv');
+
+// Faz backup antes de abrir, mas só se o banco tiver dados de uso
+if (fs.existsSync(DB_PATH)) {
+  try {
+    const tmp = new Database(DB_PATH, { readonly: true });
+    const { coladas } = tmp.prepare('SELECT COUNT(*) AS coladas FROM figurinhas WHERE colada = 1').get();
+    const { reps }    = tmp.prepare('SELECT COUNT(*) AS reps FROM repetidas').get();
+    tmp.close();
+    if (coladas > 0 || reps > 0) {
+      fs.copyFileSync(DB_PATH, BAK_PATH);
+      console.log(`Backup criado: ${path.basename(BAK_PATH)} (${coladas} coladas, ${reps} repetidas)`);
+    }
+  } catch { /* ignora erros de leitura do backup */ }
+}
 
 const db = new Database(DB_PATH);
 

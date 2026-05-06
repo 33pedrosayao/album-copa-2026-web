@@ -147,6 +147,7 @@ function renderApp() {
     <div class="header">
       <div class="header-top">
         <span class="header-title">🏆 Copa 2026</span>
+        <a class="btn-export" href="/api/export" download title="Baixar backup JSON">⬇ backup</a>
       </div>
       <div class="progress-bar-wrap">
         <div class="progress-info">
