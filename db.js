@@ -49,6 +49,29 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_repetidas_pessoa ON repetidas(pessoa);
 `);
 
+// Migration: rename JAP → JPN in figurinhas and repetidas
+if (db.prepare("SELECT COUNT(*) as c FROM figurinhas WHERE sigla = 'JAP'").get().c > 0) {
+  db.pragma('foreign_keys = OFF');
+  db.transaction(() => {
+    for (let n = 1; n <= 20; n++) {
+      db.prepare('UPDATE repetidas SET codigo = ? WHERE codigo = ?').run(`JPN${n}`, `JAP${n}`);
+      db.prepare("UPDATE figurinhas SET codigo = ?, sigla = 'JPN', secao = 'Japão - JPN' WHERE codigo = ?")
+        .run(`JPN${n}`, `JAP${n}`);
+    }
+  })();
+  db.pragma('foreign_keys = ON');
+  console.log('Migração: JAP → JPN concluída.');
+}
+
+// Migration: sync ordem_secao with current CSV order (idempotent)
+{
+  const sections = parseCsv(CSV_PATH);
+  const updateOrdem = db.prepare('UPDATE figurinhas SET ordem_secao = ? WHERE secao = ?');
+  db.transaction(() => {
+    for (const sec of sections) updateOrdem.run(sec.ordemSecao, sec.secao);
+  })();
+}
+
 // Seed only if empty
 const count = db.prepare('SELECT COUNT(*) as c FROM figurinhas').get();
 if (count.c === 0) {

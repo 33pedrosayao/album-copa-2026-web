@@ -697,6 +697,32 @@ body {
   gap: 12px;
 }
 
+/* ═══════════════════════════════
+   TOOLBAR PESSOA (zerar repetidas)
+═══════════════════════════════ */
+.pessoa-toolbar {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.btn-zerar {
+  background: transparent;
+  border: 1.5px solid currentColor;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.btn-zerar-pedro { color: var(--pedro); }
+.btn-zerar-ana   { color: var(--ana); }
+.btn-zerar-pedro:active { background: var(--pedro); color: white; }
+.btn-zerar-ana:active   { background: var(--ana);   color: white; }
+
 .btn-pedro-sm {
   background: #1976D2;
   color: white;

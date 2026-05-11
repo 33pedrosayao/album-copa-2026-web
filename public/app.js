@@ -292,6 +292,12 @@ function renderPessoaContent() {
   const album = activeAlbum();
   if (!album) return;
 
+  const toolbar = `
+    <div class="pessoa-toolbar">
+      <button class="btn-zerar btn-zerar-pedro" data-action="zerarRepetidas" data-pessoa="pedro">Zerar Pedro</button>
+      <button class="btn-zerar btn-zerar-ana"   data-action="zerarRepetidas" data-pessoa="ana">Zerar Ana</button>
+    </div>`;
+
   const sections = album.secoes.map(sec => {
     const total   = sec.figurinhas.length;
     const coladas = sec.figurinhas.filter(f => f.colada).length;
@@ -311,7 +317,7 @@ function renderPessoaContent() {
     return sectionHtml(sec, coladas, total, ``, cards);
   }).join('');
 
-  setContent(searchHtml() + sections);
+  setContent(searchHtml() + toolbar + sections);
   if (state.searchQuery) filterSections(state.searchQuery);
 }
 
@@ -535,6 +541,27 @@ async function updateRepetida(codigo, delta) {
   }
 }
 
+async function zerarRepetidas(pessoa) {
+  const nome = pessoa === 'pedro' ? 'Pedro' : 'Ana';
+  if (!confirm(`Zerar todas as repetidas de ${nome}?`)) return;
+
+  try {
+    await api('POST', '/api/repetidas/zerar', { pessoa });
+
+    const cacheKey = `album${pessoa.charAt(0).toUpperCase() + pessoa.slice(1)}`;
+    if (state[cacheKey]) {
+      for (const sec of state[cacheKey].secoes) {
+        for (const fig of sec.figurinhas) fig.repetidas = 0;
+      }
+    }
+    buildStickerMap();
+    renderCurrentTabContent();
+    showToast(`Repetidas de ${nome} zeradas!`);
+  } catch (e) {
+    showToast('Erro ao zerar. Tente novamente.');
+  }
+}
+
 function updateSectionProgress(fig) {
   const album = activeAlbum();
   if (!album) return;
@@ -581,6 +608,7 @@ function setupDelegation() {
         if (card) toggleColada(card.dataset.codigo);
         break;
       }
+      case 'zerarRepetidas':  zerarRepetidas(target.dataset.pessoa); break;
       case 'copiarRepetidas': copiarRepetidas(); break;
       case 'copiarFaltam':    copiarFaltam();    break;
       case 'clearSearch': {

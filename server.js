@@ -55,6 +55,16 @@ app.post('/api/figurinhas/:codigo/colar', (req, res) => {
   res.json({ colada: novo === 1 });
 });
 
+// POST /api/repetidas/zerar  — body: { pessoa }
+app.post('/api/repetidas/zerar', (req, res) => {
+  const { pessoa } = req.body;
+  if (!pessoa) return res.status(400).json({ error: 'pessoa é obrigatório' });
+
+  const p = pessoa.toLowerCase().trim();
+  const { changes } = db.prepare('DELETE FROM repetidas WHERE pessoa = ?').run(p);
+  res.json({ ok: true, zeradas: changes });
+});
+
 // POST /api/repetidas/:codigo  — body: { pessoa, delta: 1|-1 }
 app.post('/api/repetidas/:codigo', (req, res) => {
   const { codigo } = req.params;
