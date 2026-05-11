@@ -1,8 +1,30 @@
 'use strict';
 
 const express = require('express');
-const path = require('path');
-const db = require('./db');
+const path    = require('path');
+const fs      = require('fs');
+const { db, SNAPSHOT_PATH } = require('./db');
+
+function saveSnapshot() {
+  try {
+    const coladas = db.prepare(
+      'SELECT codigo FROM figurinhas WHERE colada = 1 ORDER BY ordem_secao, numero'
+    ).all().map(r => r.codigo);
+
+    const rows = db.prepare(
+      'SELECT pessoa, codigo, quantidade FROM repetidas WHERE quantidade > 0 ORDER BY pessoa, codigo'
+    ).all();
+    const repetidas = {};
+    for (const r of rows) {
+      if (!repetidas[r.pessoa]) repetidas[r.pessoa] = [];
+      repetidas[r.pessoa].push({ codigo: r.codigo, quantidade: r.quantidade });
+    }
+
+    fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify({ savedAt: new Date().toISOString(), coladas, repetidas }));
+  } catch (e) {
+    console.error('Erro ao salvar snapshot:', e.message);
+  }
+}
 
 const app = express();
 
@@ -52,6 +74,7 @@ app.post('/api/figurinhas/:codigo/colar', (req, res) => {
 
   const novo = fig.colada === 0 ? 1 : 0;
   db.prepare('UPDATE figurinhas SET colada = ? WHERE codigo = ?').run(novo, codigo);
+  saveSnapshot();
   res.json({ colada: novo === 1 });
 });
 
@@ -62,6 +85,7 @@ app.post('/api/repetidas/zerar', (req, res) => {
 
   const p = pessoa.toLowerCase().trim();
   const { changes } = db.prepare('DELETE FROM repetidas WHERE pessoa = ?').run(p);
+  saveSnapshot();
   res.json({ ok: true, zeradas: changes });
 });
 
@@ -97,6 +121,7 @@ app.post('/api/repetidas/:codigo', (req, res) => {
     ).run(novaQtd, p, codigo);
   }
 
+  saveSnapshot();
   res.json({ quantidade: novaQtd });
 });
 
@@ -210,6 +235,7 @@ app.post('/api/import', (req, res) => {
 
   const totalColadas = db.prepare('SELECT COUNT(*) AS n FROM figurinhas WHERE colada = 1').get().n;
   const totalReps    = db.prepare('SELECT COUNT(*) AS n FROM repetidas').get().n;
+  saveSnapshot();
   res.json({ ok: true, coladas: totalColadas, repetidas: totalReps });
 });
 

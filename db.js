@@ -3,9 +3,10 @@ const path = require('path');
 const fs   = require('fs');
 const { parseCsv } = require('./csv-parser');
 
-const DB_PATH  = process.env.DB_PATH || path.join(__dirname, 'album.db');
-const BAK_PATH = DB_PATH.replace(/\.db$/, '') + '.bak.db';
-const CSV_PATH = path.join(__dirname, 'figurinhas_album_2026.csv');
+const DB_PATH       = process.env.DB_PATH || path.join(__dirname, 'album.db');
+const BAK_PATH      = DB_PATH.replace(/\.db$/, '') + '.bak.db';
+const SNAPSHOT_PATH = DB_PATH.replace(/\.db$/, '') + '.snapshot.json';
+const CSV_PATH      = path.join(__dirname, 'figurinhas_album_2026.csv');
 
 // Faz backup antes de abrir, mas só se o banco tiver dados de uso
 if (fs.existsSync(DB_PATH)) {
@@ -90,6 +91,30 @@ if (count.c === 0) {
   insertMany(sections);
   const total = db.prepare('SELECT COUNT(*) as c FROM figurinhas').get();
   console.log(`Seed concluído: ${total.c} figurinhas inseridas.`);
+
+  // Restaura snapshot se existir — recupera dados após redeploy com DB vazio
+  if (fs.existsSync(SNAPSHOT_PATH)) {
+    try {
+      const snap = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, 'utf-8'));
+      const setColada = db.prepare('UPDATE figurinhas SET colada = 1 WHERE codigo = ?');
+      const insRep    = db.prepare(
+        'INSERT OR REPLACE INTO repetidas (pessoa, codigo, quantidade) VALUES (?, ?, ?)'
+      );
+      db.transaction(() => {
+        for (const cod of (snap.coladas || [])) setColada.run(cod);
+        for (const [pessoa, lista] of Object.entries(snap.repetidas || {})) {
+          for (const { codigo, quantidade } of lista) {
+            if (quantidade > 0) insRep.run(pessoa, codigo, quantidade);
+          }
+        }
+      })();
+      const nCol = (snap.coladas || []).length;
+      const nRep = Object.values(snap.repetidas || {}).reduce((s, l) => s + l.length, 0);
+      console.log(`Snapshot restaurado: ${nCol} coladas, ${nRep} repetidas.`);
+    } catch (e) {
+      console.error('Erro ao restaurar snapshot:', e.message);
+    }
+  }
 }
 
-module.exports = db;
+module.exports = { db, SNAPSHOT_PATH };
